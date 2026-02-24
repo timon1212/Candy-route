@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise System</title>
+
+<style>
+
+/* ================= BASE ================= */
+
+body{
+margin:0;
+font-family:Arial;
+background:#0f0f0f;
+color:white;
+display:flex;
+}
+
+/* ================= SIDEBAR ================= */
+
+.sidebar{
+width:250px;
+height:100vh;
+background:#111;
+padding:20px;
+box-sizing:border-box;
+position:fixed;
+left:0;
+top:0;
+transition:0.3s ease;
+overflow:auto;
+}
+
+.sidebar button{
+width:100%;
+margin:6px 0;
+}
+
+.sidebar.hidden{
+transform:translateX(-260px);
+}
+
+/* Mobile Toggle */
+
+.menu-toggle{
+display:none;
+position:fixed;
+top:15px;
+left:15px;
+z-index:2000;
+}
+
+/* ================= MAIN ================= */
+
+.main{
+margin-left:250px;
+padding:20px;
+width:100%;
+transition:0.3s ease;
+}
+
+.section{
+display:none;
+animation:fade 0.3s ease;
+}
+
+@keyframes fade{
+from{opacity:0;}
+to{opacity:1;}
+}
+
+.card{
+background:#1c1c1c;
+padding:15px;
+border-radius:10px;
+margin:10px 0;
+}
+
+button{
+background:#00e676;
+border:none;
+padding:8px 12px;
+border-radius:6px;
+font-weight:bold;
+cursor:pointer;
+transition:0.2s;
+}
+
+button:hover{
+opacity:0.8;
+}
+
+input,select{
+width:100%;
+padding:8px;
+margin:5px 0;
+border-radius:6px;
+border:none;
+box-sizing:border-box;
+}
+
+.low-stock{
+border:3px solid red;
+}
+
+/* ================= MOBILE ================= */
+
+@media(max-width:768px){
+
+.sidebar{
+transform:translateX(-260px);
+}
+
+.sidebar.active{
+transform:translateX(0);
+}
+
+.main{
+margin-left:0;
+}
+
+.menu-toggle{
+display:block;
+}
+
+}
+
+</style>
+</head>
+<body>
+
+<!-- MOBILE MENU BUTTON -->
+<button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+
+<!-- ================= SIDEBAR ================= -->
+
+<div class="sidebar" id="sidebar">
+
+<h2>🚀 Dashboard</h2>
+
+<button onclick="showSection('home')">🏠 Home</button>
+<button onclick="showSection('products')">📦 Products</button>
+<button onclick="showSection('routes')">🗺 Routes</button>
+<button onclick="showSection('users')">👤 Users</button>
+<button onclick="showSection('analytics')">📊 Analytics</button>
+<button onclick="logout()">🚪 Logout</button>
+
+</div>
+
+<!-- ================= MAIN CONTENT ================= -->
+
+<div class="main">
+
+<!-- HOME -->
+
+<div id="homeSection" class="section">
+<h2>Welcome</h2>
+<p>Enterprise System Active</p>
+</div>
+
+<!-- PRODUCTS -->
+
+<div id="productsSection" class="section">
+
+<h2>📦 Products</h2>
+
+<input id="productName" placeholder="Product">
+<input id="productCost" type="number" placeholder="Cost">
+<input id="productPrice" type="number" placeholder="Price">
+<input id="productStock" type="number" placeholder="Stock">
+<input id="productImages" type="file" multiple accept="image/*">
+
+<button onclick="addProduct()">Add Product</button>
+
+<div id="products"></div>
+
+</div>
+
+<!-- ROUTES -->
+
+<div id="routesSection" class="section">
+
+<h2>🗺 Routes</h2>
+
+<input id="routeName" placeholder="Route Name">
+<input id="routeAddress" placeholder="Address">
+
+<select id="routeStatus">
+<option value="Pending">Pending</option>
+<option value="Completed">Completed</option>
+</select>
+
+<button onclick="addRoute()">Add Route</button>
+
+<input id="routeSearch" placeholder="Search" onkeyup="renderRoutes()">
+
+<div id="routeList"></div>
+
+</div>
+
+<!-- USERS -->
+
+<div id="usersSection" class="section">
+
+<h2>👤 Users</h2>
+
+<input id="newUsername" placeholder="Username">
+<input id="newPassword" type="password" placeholder="Password">
+
+<select id="newRole">
+<option value="admin">Admin</option>
+<option value="manager">Manager</option>
+<option value="driver">Driver</option>
+</select>
+
+<button onclick="createUser()">Create User</button>
+
+<div id="userList"></div>
+
+</div>
+
+<!-- ANALYTICS -->
+
+<div id="analyticsSection" class="section">
+<h2>📊 Analytics</h2>
+<div class="card" id="statsBox"></div>
+</div>
+
+</div>
+
+<script>
+
+/* ================= SIDEBAR ================= */
+
+function toggleSidebar(){
+document.getElementById("sidebar").classList.toggle("active");
+}
+
+/* ================= USERS ================= */
+
+function getUsers(){
+return JSON.parse(localStorage.getItem("users")||"[]");
+}
+
+function saveUsers(u){
+localStorage.setItem("users",JSON.stringify(u));
+}
+
+if(getUsers().length===0){
+saveUsers([{username:"admin",password:"admin",role:"admin"}]);
+}
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+/* ================= SECTION SWITCH ================= */
+
+function showSection(section){
+
+document.querySelectorAll(".section").forEach(s=>{
+s.style.display="none";
+});
+
+document.getElementById(section+"Section").style.display="block";
+
+if(section==="products") renderProducts();
+if(section==="routes") renderRoutes();
+if(section==="users") renderUsers();
+if(section==="analytics") renderAnalytics();
+
+}
+
+/* ================= PRODUCTS ================= */
+
+function getProducts(){
+return JSON.parse(localStorage.getItem("products")||"[]");
+}
+
+function saveProducts(p){
+localStorage.setItem("products",JSON.stringify(p));
+}
+
+function addProduct(){
+
+let name=document.getElementById("productName").value;
+let cost=parseFloat(document.getElementById("productCost").value);
+let price=parseFloat(document.getElementById("productPrice").value);
+let stock=parseInt(document.getElementById("productStock").value);
+let files=document.getElementById("productImages").files;
+
+let products=getProducts();
+let images=[];
+
+if(files.length>0){
+
+let loaded=0;
+
+for(let i=0;i<files.length;i++){
+
+let reader=new FileReader();
+
+reader.onload=function(){
+images.push(reader.result);
+loaded++;
+
+if(loaded===files.length){
+products.push({name,cost,price,stock,sales:0,images});
+saveProducts(products);
+renderProducts();
+}
+};
+
+reader.readAsDataURL(files[i]);
+}
+
+}else{
+products.push({name,cost,price,stock,sales:0,images:[]});
+saveProducts(products);
+renderProducts();
+}
+
+}
+
+function renderProducts(){
+
+let container=document.getElementById("products");
+container.innerHTML="";
+
+getProducts().forEach((p,index)=>{
+
+let imgs="";
+if(p.images){
+p.images.forEach(img=>{
+imgs+=`<img src="${img}" style="max-width:80px;">`;
+});
+}
+
+let div=document.createElement("div");
+div.className="card";
+
+if(p.stock<=5){
+div.classList.add("low-stock");
+}
+
+div.innerHTML=`
+${imgs}
+<b>${p.name}</b><br>
+Stock: ${p.stock}<br>
+<button onclick="deleteProduct(${index})">Delete</button>
+`;
+
+container.appendChild(div);
+
+});
+
+}
+
+function deleteProduct(index){
+
+if(!confirm("Delete product?")) return;
+
+let products=getProducts();
+products.splice(index,1);
+saveProducts(products);
+renderProducts();
+
+}
+
+/* ================= ROUTES ================= */
+
+function getRoutes(){
+return JSON.parse(localStorage.getItem("routes")||"[]");
+}
+
+function saveRoutes(r){
+localStorage.setItem("routes",JSON.stringify(r));
+}
+
+function addRoute(){
+
+let name=document.getElementById("routeName").value;
+let address=document.getElementById("routeAddress").value;
+let status=document.getElementById("routeStatus").value;
+
+let routes=getRoutes();
+
+routes.push({
+name,
+address,
+status,
+date:new Date().toLocaleString()
+});
+
+saveRoutes(routes);
+renderRoutes();
+
+}
+
+function renderRoutes(){
+
+let search=document.getElementById("routeSearch").value?.toLowerCase()||"";
+let routes=getRoutes();
+let container=document.getElementById("routeList");
+container.innerHTML="";
+
+routes = routes.filter(r =>
+r.name.toLowerCase().includes(search) ||
+r.address.toLowerCase().includes(search)
+);
+
+routes.forEach((r,index)=>{
+
+let div=document.createElement("div");
+div.className="card";
+
+div.innerHTML=`
+<b>${r.name}</b><br>
+📍 ${r.address}<br>
+Status: ${r.status}<br>
+<button onclick="editRoute(${index})">Edit</button>
+<button onclick="deleteRoute(${index})">Delete</button>
+<button onclick="moveUp(${index})">⬆</button>
+<button onclick="moveDown(${index})">⬇</button>
+`;
+
+container.appendChild(div);
+
+});
+
+}
+
+function editRoute(index){
+
+let routes=getRoutes();
+let r=routes[index];
+
+let newName=prompt("Edit Name",r.name);
+let newAddress=prompt("Edit Address",r.address);
+let newStatus=prompt("Edit Status",r.status);
+
+routes[index]={...r,name:newName,address:newAddress,status:newStatus};
+
+saveRoutes(routes);
+renderRoutes();
+
+}
+
+function deleteRoute(index){
+
+if(!confirm("Delete route?")) return;
+
+let routes=getRoutes();
+routes.splice(index,1);
+
+saveRoutes(routes);
+renderRoutes();
+
+}
+
+function moveUp(index){
+
+let routes=getRoutes();
+if(index===0) return;
+
+let temp=routes[index];
+routes[index]=routes[index-1];
+routes[index-1]=temp;
+
+saveRoutes(routes);
+renderRoutes();
+
+}
+
+function moveDown(index){
+
+let routes=getRoutes();
+if(index===routes.length-1) return;
+
+let temp=routes[index];
+routes[index]=routes[index+1];
+routes[index+1]=temp;
+
+saveRoutes(routes);
+renderRoutes();
+
+}
+
+/* ================= USERS ================= */
+
+function createUser(){
+
+let users=getUsers();
+
+users.push({
+username:document.getElementById("newUsername").value,
+password:document.getElementById("newPassword").value,
+role:document.getElementById("newRole").value
+});
+
+saveUsers(users);
+renderUsers();
+
+}
+
+function renderUsers(){
+
+let container=document.getElementById("userList");
+container.innerHTML="";
+
+getUsers().forEach(u=>{
+
+let div=document.createElement("div");
+div.className="card";
+
+div.innerHTML=`
+<b>${u.username}</b><br>
+Role: ${u.role}
+`;
+
+container.appendChild(div);
+
+});
+
+}
+
+/* ================= ANALYTICS ================= */
+
+function renderAnalytics(){
+
+let products=getProducts();
+let users=getUsers();
+
+let stock=0;
+let revenue=0;
+
+products.forEach(p=>{
+stock+=p.stock;
+revenue+=(p.sales||0)*p.price;
+});
+
+document.getElementById("statsBox").innerHTML=`
+Products: ${products.length}<br>
+Stock: ${stock}<br>
+Revenue: $${revenue.toFixed(2)}<br>
+Users: ${users.length}
+`;
+
+}
+
+/* ================= INIT ================= */
+
+document.addEventListener("DOMContentLoaded",()=>{
+showSection("home");
+renderProducts();
+});
+
+</script>
+
+</body>
+</html>
