@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test System</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#0f0f0f;
+color:white;
+}
+
+/* Sidebar */
+
+.sidebar{
+width:200px;
+height:100vh;
+background:#111;
+padding:15px;
+position:fixed;
+left:0;
+top:0;
+}
+
+.main{
+margin-left:200px;
+padding:20px;
+}
+
+/* Sections */
+
+.section{
+display:none;
+}
+
+button{
+background:#00e676;
+border:none;
+padding:8px 12px;
+border-radius:6px;
+cursor:pointer;
+}
+
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+
+<button onclick="show('home')">Home</button>
+<button onclick="show('products')">Products</button>
+
+</div>
+
+<div class="main">
+
+<div id="home" class="section">
+<h2>Home Working ✅</h2>
+</div>
+
+<div id="products" class="section">
+<h2>Products Working ✅</h2>
+</div>
+
+</div>
+
+<script>
+
+function show(id){
+
+document.querySelectorAll(".section").forEach(s=>{
+s.style.display="none";
+});
+
+document.getElementById(id).style.display="block";
+
+}
+
+/* Load Default */
+
+document.addEventListener("DOMContentLoaded",()=>{
+show("home");
+});
+
+</script>
+
+</body>
+</html>
