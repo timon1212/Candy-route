@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Dashboard</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00e676">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root{
+--bg:#0f0f0f;
+--card:#1c1c1c;
+--text:#ffffff;
+--accent:#00e676;
+}
+
+.light{
+--bg:#f5f5f5;
+--card:#ffffff;
+--text:#000000;
+--accent:#0077ff;
+}
+
+body{
+background:var(--bg);
+color:var(--text);
+font-family:Arial;
+padding:20px;
+transition:0.3s;
+}
+
+input,select,button{
+width:100%;
+padding:10px;
+margin:6px 0;
+border-radius:8px;
+border:none;
+}
+
+button{
+background:var(--accent);
+color:white;
+font-weight:bold;
+}
+
+button.danger{
+background:#d32f2f;
+}
+
+.card{
+background:var(--card);
+padding:20px;
+border-radius:12px;
+margin:10px 0;
+}
+
+.low-stock{
+border:3px solid red;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:15px;
+}
+</style>
+</head>
+<body>
+
+<h2>🚀 Enterprise Dashboard</h2>
+<button onclick="toggleTheme()">Toggle Light/Dark</button>
+
+<div id="loginSection">
+<h3>Login</h3>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div id="app" style="display:none;">
+
+<h3 id="welcome"></h3>
+<button class="danger" onclick="logout()">Logout</button>
+
+<hr>
+
+<h3>Add Product</h3>
+<input id="productName" placeholder="Product Name">
+<input id="productCost" type="number" placeholder="Cost">
+<input id="productPrice" type="number" placeholder="Price">
+<input id="productStock" type="number" placeholder="Stock">
+<button onclick="addProduct()">Add Product</button>
+
+<div id="products"></div>
+
+<hr>
+
+<h3>📊 Analytics</h3>
+
+<div class="grid">
+<div class="card" id="totalRevenue"></div>
+<div class="card" id="totalProfit"></div>
+<div class="card" id="totalSales"></div>
+</div>
+
+<h3>⚠ Stock Alerts</h3>
+<div id="stockAlerts"></div>
+
+<h3>📈 Sales Chart</h3>
+<canvas id="chart"></canvas>
+
+<h3>📅 Daily Profit</h3>
+<canvas id="dailyChart"></canvas>
+
+<h3>📆 Weekly Profit</h3>
+<canvas id="weeklyChart"></canvas>
+
+<h3>📁 Export Data</h3>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="exportPDF()">Export PDF</button>
+
+</div>
+
+<script>
+
+/* ================= THEME ================= */
+
+function toggleTheme(){
+document.body.classList.toggle("light");
+localStorage.setItem("theme",
+document.body.classList.contains("light")?"light":"dark");
+}
+
+window.onload=()=>{
+if(localStorage.getItem("theme")==="light"){
+document.body.classList.add("light");
+}
+autoLogin();
+render();
+};
+
+/* ================= USERS ================= */
+
+let defaultAdmin={
+username:"admin",
+password:"admin123",
+role:"admin"
+};
+
+function getUsers(){
+return JSON.parse(localStorage.getItem("users")||"[]");
+}
+
+function saveUsers(u){
+localStorage.setItem("users",JSON.stringify(u));
+}
+
+if(getUsers().length===0){
+saveUsers([defaultAdmin]);
+}
+
+let currentUser=null;
+
+function login(){
+let u=document.getElementById("loginUser").value;
+let p=document.getElementById("loginPass").value;
+
+let user=getUsers().find(x=>x.username===u && x.password===p);
+
+if(!user){
+alert("Invalid login");
+return;
+}
+
+currentUser=user;
+localStorage.setItem("currentUser",JSON.stringify(user));
+
+document.getElementById("loginSection").style.display="none";
+document.getElementById("app").style.display="block";
+
+document.getElementById("welcome").innerText=
+"Logged in as "+user.username+" ("+user.role+")";
+
+render();
+}
+
+function autoLogin(){
+let saved=localStorage.getItem("currentUser");
+if(saved){
+currentUser=JSON.parse(saved);
+document.getElementById("loginSection").style.display="none";
+document.getElementById("app").style.display="block";
+}
+}
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+/* ================= PRODUCTS ================= */
+
+function getProducts(){
+return JSON.parse(localStorage.getItem("products")||"[]");
+}
+
+function saveProducts(p){
+localStorage.setItem("products",JSON.stringify(p));
+}
+
+function addProduct(){
+
+let name=document.getElementById("productName").value;
+let cost=parseFloat(document.getElementById("productCost").value);
+let price=parseFloat(document.getElementById("productPrice").value);
+let stock=parseInt(document.getElementById("productStock").value);
+
+let products=getProducts();
+products.push({name,cost,price,stock,sales:0});
+saveProducts(products);
+render();
+}
+
+function sellProduct(index){
+let products=getProducts();
+if(products[index].stock<=0)return;
+
+products[index].stock--;
+products[index].sales++;
+saveProducts(products);
+render();
+}
+
+/* ================= ANALYTICS ================= */
+
+function calculateKPIs(){
+
+let products=getProducts();
+
+let revenue=0;
+let cost=0;
+let sales=0;
+
+products.forEach(p=>{
+revenue+=p.price*p.sales;
+cost+=p.cost*p.sales;
+sales+=p.sales;
+});
+
+let profit=revenue-cost;
+
+document.getElementById("totalRevenue").innerHTML=
+"<h3>Total Revenue</h3>$"+revenue.toFixed(2);
+
+document.getElementById("totalProfit").innerHTML=
+"<h3>Total Profit</h3>$"+profit.toFixed(2);
+
+document.getElementById("totalSales").innerHTML=
+"<h3>Total Sales</h3>"+sales;
+}
+
+/* ================= STOCK ALERT ================= */
+
+function checkStockAlerts(){
+
+let products=getProducts();
+let container=document.getElementById("stockAlerts");
+container.innerHTML="";
+
+let low=products.filter(p=>p.stock<=5);
+
+if(low.length>0){
+low.forEach(p=>{
+let div=document.createElement("div");
+div.className="card low-stock";
+div.innerHTML=`⚠ ${p.name} LOW STOCK<br>Stock: ${p.stock}`;
+container.appendChild(div);
+});
+}
+}
+
+/* ================= CHARTS ================= */
+
+function renderChart(){
+
+let ctx=document.getElementById("chart").getContext("2d");
+let products=getProducts();
+
+if(window.mainChart)window.mainChart.destroy();
+
+window.mainChart=new Chart(ctx,{
+type:"bar",
+data:{
+labels:products.map(p=>p.name),
+datasets:[{
+label:"Sales",
+data:products.map(p=>p.sales),
+backgroundColor:"#00e676"
+}]
+}
+});
+}
+
+function renderTimeChart(canvasId,key,label){
+
+let history=JSON.parse(localStorage.getItem(key)||"[]");
+
+let ctx=document.getElementById(canvasId).getContext("2d");
+
+if(window[canvasId])window[canvasId].destroy();
+
+window[canvasId]=new Chart(ctx,{
+type:"line",
+data:{
+labels:history.map(h=>h.date),
+datasets:[{
+label:label,
+data:history.map(h=>h.profit),
+borderColor:"#ff9800",
+tension:0.4
+}]
+}
+});
+}
+
+function trackProfit(){
+
+let today=new Date().toLocaleDateString();
+let week="Week-"+getWeekNumber();
+
+let products=getProducts();
+
+let revenue=0;
+let cost=0;
+
+products.forEach(p=>{
+revenue+=p.price*p.sales;
+cost+=p.cost*p.sales;
+});
+
+let profit=revenue-cost;
+
+savePeriod("daily-"+today,profit);
+savePeriod("weekly-"+week,profit);
+}
+
+function savePeriod(key,profit){
+
+let history=JSON.parse(localStorage.getItem(key)||"[]");
+
+history.push({date:new Date().toLocaleString(),profit});
+
+localStorage.setItem(key,JSON.stringify(history));
+}
+
+function getWeekNumber(){
+let d=new Date();
+let onejan=new Date(d.getFullYear(),0,1);
+return Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
+}
+
+/* ================= EXPORT ================= */
+
+function exportCSV(){
+
+let products=getProducts();
+let csv="Name,Cost,Price,Stock,Sales\n";
+
+products.forEach(p=>{
+csv+=`${p.name},${p.cost},${p.price},${p.stock},${p.sales}\n`;
+});
+
+let blob=new Blob([csv],{type:"text/csv"});
+let url=URL.createObjectURL(blob);
+
+let a=document.createElement("a");
+a.href=url;
+a.download="data.csv";
+a.click();
+}
+
+function exportPDF(){
+
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+
+let products=getProducts();
+let y=10;
+
+doc.text("Business Report",10,y);
+y+=10;
+
+products.forEach(p=>{
+doc.text(`${p.name} | Stock:${p.stock} | Sales:${p.sales}`,10,y);
+y+=10;
+});
+
+doc.save("report.pdf");
+}
+
+/* ================= RENDER ================= */
+
+function render(){
+
+trackProfit();
+calculateKPIs();
+renderChart();
+renderTimeChart("dailyChart","daily-"+new Date().toLocaleDateString(),"Daily Profit");
+renderTimeChart("weeklyChart","weekly-Week-"+getWeekNumber(),"Weekly Profit");
+checkStockAlerts();
+}
+
+</script>
+
+</body>
+</html>
