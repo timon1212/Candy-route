@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Smart System</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#0f0f0f;
+color:white;
+}
+
+button{
+background:#00e676;
+border:none;
+padding:8px 12px;
+border-radius:6px;
+font-weight:bold;
+cursor:pointer;
+}
+
+input,select{
+width:100%;
+padding:8px;
+margin:5px 0;
+border-radius:6px;
+border:none;
+}
+
+.sidebar{
+width:250px;
+height:100vh;
+background:#111;
+padding:20px;
+position:fixed;
+left:0;
+top:0;
+}
+
+.sidebar button{
+width:100%;
+margin:5px 0;
+}
+
+.main{
+margin-left:270px;
+padding:20px;
+}
+
+.section{
+display:none;
+}
+
+.card{
+background:#1c1c1c;
+padding:15px;
+border-radius:10px;
+margin:10px 0;
+}
+
+img{
+max-width:100%;
+border-radius:8px;
+margin:5px;
+cursor:pointer;
+}
+
+.low-stock{
+border:3px solid red;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+
+<div id="loginSection">
+<h2>Login</h2>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div id="app" style="display:none;">
+
+<!-- ================= SIDEBAR ================= -->
+
+<div class="sidebar">
+
+<h3>🚀 Dashboard</h3>
+
+<button onclick="showSection('home')">🏠 Home</button>
+<button onclick="showSection('products')">📦 Products</button>
+<button onclick="showSection('ai')">🤖 AI Tools</button>
+<button onclick="showSection('users')">👤 Users</button>
+<button onclick="showSection('audit')">🕵 Audit</button>
+<button onclick="logout()">🚪 Logout</button>
+
+</div>
+
+<!-- ================= MAIN CONTENT ================= -->
+
+<div class="main">
+
+<!-- HOME -->
+
+<div id="homeSection" class="section">
+<h2>🏠 Home</h2>
+<p>Welcome to your Smart Business System</p>
+</div>
+
+<!-- PRODUCTS -->
+
+<div id="productsSection" class="section">
+
+<h2>📦 Products</h2>
+
+<input id="productName" placeholder="Product">
+<input id="productCost" type="number" placeholder="Cost">
+<input id="productPrice" type="number" placeholder="Price">
+<input id="productStock" type="number" placeholder="Stock">
+<input id="productImages" type="file" multiple accept="image/*">
+
+<button onclick="addProduct()">Add Product</button>
+
+<div id="products"></div>
+
+</div>
+
+<!-- AI -->
+
+<div id="aiSection" class="section">
+<h2>🤖 AI Pricing</h2>
+<div id="pricingAI"></div>
+<button onclick="renderPricingAI()">Run AI</button>
+</div>
+
+<!-- USERS -->
+
+<div id="usersSection" class="section">
+<h2>👤 User Management</h2>
+
+<input id="newUsername" placeholder="Username">
+<input id="newPassword" type="password" placeholder="Password">
+
+<select id="newRole">
+<option value="admin">Admin</option>
+<option value="manager">Manager</option>
+<option value="viewer">Viewer</option>
+</select>
+
+<button onclick="createUser()">Create User</button>
+
+<div id="userList"></div>
+
+</div>
+
+<!-- AUDIT -->
+
+<div id="auditSection" class="section">
+<h2>🕵 Audit Logs</h2>
+<div id="auditContainer"></div>
+<button onclick="renderAuditLogs()">Refresh</button>
+</div>
+
+</div>
+</div>
+
+<script>
+
+/* ================= LOGIN ================= */
+
+function getUsers(){
+return JSON.parse(localStorage.getItem("users")||"[]");
+}
+
+function saveUsers(u){
+localStorage.setItem("users",JSON.stringify(u));
+}
+
+/* Default Admin */
+
+if(getUsers().length===0){
+saveUsers([{
+username:"admin",
+password:"admin",
+role:"admin"
+}]);
+}
+
+function login(){
+
+let username=document.getElementById("loginUser").value;
+let password=document.getElementById("loginPass").value;
+
+let users=getUsers();
+
+let user=users.find(u=>u.username===username && u.password===password);
+
+if(!user){
+alert("Invalid Login ❌");
+return;
+}
+
+localStorage.setItem("currentUser",JSON.stringify(user));
+
+document.getElementById("loginSection").style.display="none";
+document.getElementById("app").style.display="block";
+
+showSection("home");
+
+}
+
+/* ================= LOGOUT ================= */
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+/* ================= SIDEBAR ================= */
+
+function showSection(section){
+
+document.querySelectorAll(".section").forEach(sec=>{
+sec.style.display="none";
+});
+
+document.getElementById(section+"Section").style.display="block";
+
+if(section==="users"){
+renderUsers();
+}
+
+if(section==="audit"){
+renderAuditLogs();
+}
+
+}
+
+/* ================= PRODUCTS ================= */
+
+function getProducts(){
+return JSON.parse(localStorage.getItem("products")||"[]");
+}
+
+function saveProducts(p){
+localStorage.setItem("products",JSON.stringify(p));
+}
+
+function addProduct(){
+
+let name=document.getElementById("productName").value;
+let cost=parseFloat(document.getElementById("productCost").value);
+let price=parseFloat(document.getElementById("productPrice").value);
+let stock=parseInt(document.getElementById("productStock").value);
+let files=document.getElementById("productImages").files;
+
+let products=getProducts();
+let images=[];
+
+if(files.length>0){
+
+let loaded=0;
+
+for(let i=0;i<files.length;i++){
+
+let reader=new FileReader();
+
+reader.onload=function(){
+images.push(reader.result);
+loaded++;
+
+if(loaded===files.length){
+
+products.push({
+name,cost,price,stock,sales:0,images
+});
+
+saveProducts(products);
+render();
+}
+
+};
+
+reader.readAsDataURL(files[i]);
+
+}
+
+}else{
+
+products.push({
+name,cost,price,stock,sales:0,images:[]
+});
+
+saveProducts(products);
+render();
+}
+
+}
+
+/* ================= RENDER PRODUCTS ================= */
+
+function render(){
+
+let container=document.getElementById("products");
+if(!container) return;
+
+container.innerHTML="";
+
+let products=getProducts();
+
+products.forEach((p,i)=>{
+
+let imagesHtml="";
+
+if(p.images){
+p.images.forEach(img=>{
+imagesHtml+=`<img src="${img}" onclick="openImage('${img}')">`;
+});
+}
+
+let div=document.createElement("div");
+div.className="card";
+
+if(p.stock<=5){
+div.classList.add("low-stock");
+}
+
+div.innerHTML=`
+${imagesHtml}
+<b>${p.name}</b><br>
+Stock: ${p.stock}<br>
+<button onclick="sell(${i})">Sell</button>
+`;
+
+container.appendChild(div);
+
+});
+
+renderPricingAI();
+renderAuditLogs();
+
+}
+
+function sell(index){
+
+let products=getProducts();
+
+products[index].stock--;
+products[index].sales++;
+
+saveProducts(products);
+
+logAction("Sale","Sold "+products[index].name);
+
+render();
+
+}
+
+/* ================= IMAGE POPUP ================= */
+
+function openImage(img){
+
+let modal=document.createElement("div");
+
+modal.style.position="fixed";
+modal.style.top=0;
+modal.style.left=0;
+modal.style.width="100%";
+modal.style.height="100%";
+modal.style.background="rgba(0,0,0,0.8)";
+modal.style.display="flex";
+modal.style.alignItems="center";
+modal.style.justifyContent="center";
+modal.style.zIndex="9999";
+
+modal.innerHTML=`<img src="${img}" style="max-width:90%;max-height:90%">`;
+
+modal.onclick=()=>modal.remove();
+
+document.body.appendChild(modal);
+
+}
+
+/* ================= AI PRICING ================= */
+
+function renderPricingAI(){
+
+let products=getProducts();
+let container=document.getElementById("pricingAI");
+if(!container) return;
+
+container.innerHTML="";
+
+products.forEach(p=>{
+
+let margin=((p.price-p.cost)/p.price)*100;
+
+if(margin<20){
+
+let suggested=(p.cost*1.3).toFixed(2);
+
+let div=document.createElement("div");
+div.className="card";
+
+div.innerHTML=`
+🤖 Suggest Increase<br>
+<b>${p.name}</b><br>
+Current: $${p.price}<br>
+Suggested: $${suggested}<br>
+<button onclick="applyPrice('${p.name}',${suggested})">
+Apply
+</button>
+`;
+
+container.appendChild(div);
+
+}
+
+});
+
+}
+
+function applyPrice(name,newPrice){
+
+let products=getProducts();
+
+products.forEach(p=>{
+if(p.name===name){
+p.price=parseFloat(newPrice);
+}
+});
+
+saveProducts(products);
+logAction("AI","Price changed for "+name);
+render();
+
+}
+
+/* ================= USERS ================= */
+
+function createUser(){
+
+let username=document.getElementById("newUsername").value;
+let password=document.getElementById("newPassword").value;
+let role=document.getElementById("newRole").value;
+
+let users=getUsers();
+
+users.push({username,password,role});
+
+saveUsers(users);
+
+renderUsers();
+
+alert("User Created ✅");
+
+}
+
+function renderUsers(){
+
+let users=getUsers();
+let container=document.getElementById("userList");
+container.innerHTML="";
+
+users.forEach((u,index)=>{
+
+let div=document.createElement("div");
+div.className="card";
+
+div.innerHTML=`
+<b>${u.username}</b><br>
+Role: ${u.role}<br>
+<button onclick="deleteUser(${index})">Delete</button>
+`;
+
+container.appendChild(div);
+
+});
+
+}
+
+function deleteUser(index){
+
+let users=getUsers();
+users.splice(index,1);
+saveUsers(users);
+renderUsers();
+
+}
+
+/* ================= AUDIT ================= */
+
+function logAction(action,details){
+
+let logs=JSON.parse(localStorage.getItem("auditLogs")||"[]");
+
+logs.push({
+user:"Admin",
+action,
+details,
+time:new Date().toLocaleString()
+});
+
+localStorage.setItem("auditLogs",JSON.stringify(logs));
+
+}
+
+function renderAuditLogs(){
+
+let logs=JSON.parse(localStorage.getItem("auditLogs")||"[]");
+let container=document.getElementById("auditContainer");
+container.innerHTML="";
+
+logs.slice().reverse().forEach(l=>{
+
+let div=document.createElement("div");
+div.className="card";
+
+div.innerHTML=`
+<b>${l.time}</b><br>
+${l.action}<br>
+${l.details}
+`;
+
+container.appendChild(div);
+
+});
+
+}
+
+</script>
+
+</body>
+</html>
