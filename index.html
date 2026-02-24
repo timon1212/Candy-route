@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Control System</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#111;
+color:white;
+}
+
+.sidebar{
+width:220px;
+height:100vh;
+background:#1c1c1c;
+padding:20px;
+position:fixed;
+left:0;
+top:0;
+box-sizing:border-box;
+}
+
+.sidebar button{
+width:100%;
+margin:6px 0;
+}
+
+.main{
+margin-left:220px;
+padding:30px;
+}
+
+.section{ display:none; }
+
+.card{
+background:#222;
+padding:15px;
+border-radius:10px;
+margin:10px 0;
+}
+
+button{
+background:#00e676;
+border:none;
+padding:8px 12px;
+border-radius:6px;
+cursor:pointer;
+font-weight:bold;
+}
+
+input{
+width:100%;
+padding:8px;
+margin:6px 0;
+border-radius:6px;
+border:none;
+background:#2a2a2a;
+color:white;
+box-sizing:border-box;
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+<h3>System</h3>
+<div id="sidebarButtons"></div>
+<button onclick="logout()">Logout</button>
+</div>
+
+<div class="main">
+
+<!-- ROUTES -->
+<div id="routesSection" class="section">
+<div class="card">
+<h2>🚛 Routes</h2>
+
+<input id="routeName" placeholder="Route Name">
+<input id="routeAddress" placeholder="Route Address">
+
+<button onclick="addRoute()">Add Route</button>
+
+<div id="routesList"></div>
+
+</div>
+</div>
+
+<!-- INTELLIGENCE TAB -->
+<div id="intelligenceSection" class="section">
+
+<div class="card">
+<h2>🧠 System Intelligence</h2>
+
+<button onclick="runIntelligence()">Run Analysis</button>
+
+<div id="intelligenceContent" style="margin-top:15px;"></div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+/* =====================================================
+   USERS (Warnings + Auto Lock)
+===================================================== */
+
+function getUsers(){
+let users=JSON.parse(localStorage.getItem("users")||"[]");
+
+users.forEach(u=>{
+if(!Array.isArray(u.warnings)) u.warnings=[];
+if(u.locked===undefined) u.locked=false;
+});
+
+return users;
+}
+
+function saveUsers(users){
+localStorage.setItem("users",JSON.stringify(users));
+}
+
+/* =====================================================
+   ROUTE SYSTEM
+===================================================== */
+
+function getRoutes(){
+return JSON.parse(localStorage.getItem("routes")||"[]");
+}
+
+function saveRoutes(routes){
+localStorage.setItem("routes",JSON.stringify(routes));
+}
+
+function addRoute(){
+
+let routes=getRoutes();
+
+routes.push({
+name:document.getElementById("routeName").value,
+address:document.getElementById("routeAddress").value,
+status:"Pending",
+assignedTo:null
+});
+
+saveRoutes(routes);
+renderRoutes();
+}
+
+function renderRoutes(){
+
+let routes=getRoutes();
+let container=document.getElementById("routesList");
+if(!container) return;
+
+let output="";
+
+routes.forEach((r,index)=>{
+
+output+=`
+<div class="card">
+<b>${r.name}</b><br>
+📍 ${r.address}<br>
+Status: ${r.status}<br>
+Assigned: ${r.assignedTo || "Unassigned"}<br>
+
+<button onclick="markComplete(${index})">Complete</button>
+<button onclick="deleteRoute(${index})">Delete</button>
+
+</div>
+`;
+
+});
+
+container.innerHTML=output;
+}
+
+function markComplete(index){
+let routes=getRoutes();
+routes[index].status="Completed";
+saveRoutes(routes);
+renderRoutes();
+}
+
+function deleteRoute(index){
+let routes=getRoutes();
+routes.splice(index,1);
+saveRoutes(routes);
+renderRoutes();
+}
+
+/* =====================================================
+   WARNING SYSTEM WITH EXPIRATION
+===================================================== */
+
+function addWarningToUser(username){
+
+let users=getUsers();
+let user=users.find(u=>u.username===username);
+if(!user) return;
+
+user.warnings.push({
+date:new Date().toISOString()
+});
+
+/* Clean expired */
+cleanupWarnings(user);
+
+/* Lock if 3 active */
+if(user.warnings.length >= 3){
+user.locked=true;
+alert("🚨 ACCOUNT LOCKED: "+username);
+}
+
+saveUsers(users);
+}
+
+function cleanupWarnings(user){
+
+let now=new Date();
+
+user.warnings = user.warnings.filter(w=>{
+let diff=(now-new Date(w.date))/(1000*60*60*24);
+return diff <= 30;
+});
+
+/* Auto unlock if warnings < 3 */
+if(user.warnings.length < 3){
+user.locked=false;
+}
+
+}
+
+/* Daily auto cleanup */
+setInterval(()=>{
+let users=getUsers();
+users.forEach(u=>cleanupWarnings(u));
+saveUsers(users);
+},86400000);
+
+/* =====================================================
+   REPUTATION SYSTEM
+===================================================== */
+
+function getReputation(){
+return JSON.parse(localStorage.getItem("driverReputation")||"[]");
+}
+
+function saveReputation(data){
+localStorage.setItem("driverReputation",JSON.stringify(data));
+}
+
+function updateReputation(){
+
+let drivers=getUsers().filter(u=>u.role==="driver");
+let routes=getRoutes();
+let reputation=getReputation();
+
+drivers.forEach(driver=>{
+
+let driverRoutes=routes.filter(r=>r.assignedTo===driver.username);
+
+let completed=driverRoutes.filter(r=>r.status==="Completed").length;
+let total=driverRoutes.length;
+
+let score= total===0 ? 50 : (completed/total)*100;
+score=Math.max(0,Math.min(100,score));
+
+let existing=reputation.find(r=>r.driver===driver.username);
+
+if(existing){
+existing.score=score;
+existing.date=new Date().toISOString();
+}else{
+reputation.push({
+driver:driver.username,
+score:score,
+date:new Date().toISOString()
+});
+}
+
+/* Auto warning for bad performance */
+if(score < 30){
+addWarningToUser(driver.username);
+}
+
+});
+
+saveReputation(reputation);
+}
+
+/* =====================================================
+   INTELLIGENCE TAB (AI + REPUTATION + WARNINGS)
+===================================================== */
+
+function runIntelligence(){
+
+updateReputation();
+
+let routes=getRoutes();
+let reputation=getReputation();
+let users=getUsers();
+
+let completed=routes.filter(r=>r.status==="Completed").length;
+let pending=routes.filter(r=>r.status==="Pending").length;
+
+let lowRep=reputation.filter(r=>r.score<50);
+let locked=users.filter(u=>u.locked);
+let warningUsers=users.filter(u=>u.warnings.length>0);
+
+let output="🤖 SYSTEM INTELLIGENCE REPORT\n\n";
+
+output+=`📊 Routes\nCompleted: ${completed}\nPending: ${pending}\n\n`;
+
+output+="⭐ Low Reputation\n";
+if(lowRep.length===0){
+output+="No risks detected.\n";
+}else{
+lowRep.forEach(r=>{
+output+=`${r.driver} — ${r.score.toFixed(1)}\n`;
+});
+}
+
+output+="\n🚨 Locked Accounts\n";
+if(locked.length===0){
+output+="None\n";
+}else{
+locked.forEach(u=>{
+output+=`${u.username}\n`;
+});
+}
+
+output+="\n⚠ Active Warnings\n";
+if(warningUsers.length===0){
+output+="None\n";
+}else{
+warningUsers.forEach(u=>{
+output+=`${u.username} — ${u.warnings.length} warnings\n`;
+});
+}
+
+document.getElementById("intelligenceContent").innerText=output;
+
+}
+
+/* =====================================================
+   SIDEBAR
+===================================================== */
+
+function loadSidebar(){
+
+let buttons=[
+{label:"Routes",section:"routes"},
+{label:"Intelligence",section:"intelligence"}
+];
+
+let container=document.getElementById("sidebarButtons");
+container.innerHTML="";
+
+buttons.forEach(b=>{
+let btn=document.createElement("button");
+btn.innerText=b.label;
+btn.onclick=()=>showSection(b.section);
+container.appendChild(btn);
+});
+
+}
+
+function showSection(section){
+
+document.querySelectorAll(".section")
+.forEach(s=>s.style.display="none");
+
+let el=document.getElementById(section+"Section");
+if(el) el.style.display="block";
+
+if(section==="routes") renderRoutes();
+if(section==="intelligence") runIntelligence();
+
+}
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+/* =====================================================
+   INIT
+===================================================== */
+
+document.addEventListener("DOMContentLoaded",()=>{
+loadSidebar();
+showSection("routes");
+});
+
+</script>
+
+</body>
+</html>
