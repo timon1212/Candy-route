@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise AI System</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#111;
+color:white;
+}
+
+.sidebar{
+width:220px;
+height:100vh;
+background:#1c1c1c;
+padding:20px;
+position:fixed;
+left:0;
+top:0;
+box-sizing:border-box;
+}
+
+.sidebar button{
+width:100%;
+margin:6px 0;
+}
+
+.main{
+margin-left:220px;
+padding:30px;
+}
+
+.section{ display:none; }
+
+.card{
+background:#222;
+padding:15px;
+border-radius:10px;
+margin:10px 0;
+}
+
+button{
+background:#00e676;
+border:none;
+padding:8px 12px;
+border-radius:6px;
+cursor:pointer;
+font-weight:bold;
+}
+
+input,select{
+width:100%;
+padding:8px;
+margin:6px 0;
+border-radius:6px;
+border:none;
+background:#2a2a2a;
+color:white;
+box-sizing:border-box;
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+<h3>System</h3>
+<div id="sidebarButtons"></div>
+<button onclick="logout()">Logout</button>
+</div>
+
+<div class="main">
+
+<!-- ROUTES -->
+<div id="routesSection" class="section">
+<div class="card">
+<h2>🚛 Routes</h2>
+
+<input id="routeName" placeholder="Route Name">
+<input id="routeAddress" placeholder="Route Address">
+
+<select id="assignDriver"></select>
+
+<button onclick="addRoute()">Add Route</button>
+
+<div id="routesList"></div>
+
+</div>
+</div>
+
+<!-- USERS -->
+<div id="usersSection" class="section">
+<div class="card">
+<h2>👤 User Management</h2>
+
+<input id="newUsername" placeholder="Username">
+<input id="newPassword" placeholder="Password">
+
+<select id="newRole">
+<option value="driver">Driver</option>
+<option value="admin">Admin</option>
+</select>
+
+<button onclick="addUser()">Add User</button>
+
+<div id="usersList"></div>
+
+</div>
+</div>
+
+<!-- PRODUCTS -->
+<div id="productsSection" class="section">
+<div class="card">
+<h2>📦 Inventory</h2>
+
+<input id="productName" placeholder="Product Name">
+<input id="productStock" type="number" placeholder="Stock">
+
+<button onclick="addProduct()">Add Product</button>
+
+<div id="productsList"></div>
+
+</div>
+</div>
+
+<!-- INTELLIGENCE -->
+<div id="intelligenceSection" class="section">
+<div class="card">
+<h2>🧠 Intelligence</h2>
+<button onclick="runIntelligence()">Run Analysis</button>
+<div id="intelligenceContent" style="white-space:pre-wrap;"></div>
+</div>
+</div>
+
+</div>
+
+<script>
+
+/* =====================================================
+   STORAGE
+===================================================== */
+
+function getUsers(){
+let users=JSON.parse(localStorage.getItem("users")||"[]");
+users.forEach(u=>{
+if(!Array.isArray(u.warnings)) u.warnings=[];
+if(u.locked===undefined) u.locked=false;
+});
+return users;
+}
+
+function saveUsers(users){
+localStorage.setItem("users",JSON.stringify(users));
+}
+
+function getRoutes(){
+return JSON.parse(localStorage.getItem("routes")||"[]");
+}
+
+function saveRoutes(routes){
+localStorage.setItem("routes",JSON.stringify(routes));
+}
+
+function getProducts(){
+return JSON.parse(localStorage.getItem("products")||"[]");
+}
+
+function saveProducts(products){
+localStorage.setItem("products",JSON.stringify(products));
+}
+
+/* =====================================================
+   USERS
+===================================================== */
+
+function addUser(){
+
+let users=getUsers();
+
+users.push({
+username:newUsername.value,
+password:newPassword.value,
+role:newRole.value,
+warnings:[],
+locked:false
+});
+
+saveUsers(users);
+renderUsers();
+populateDrivers();
+}
+
+function renderUsers(){
+
+let users=getUsers();
+let container=document.getElementById("usersList");
+if(!container) return;
+
+let output="";
+
+users.forEach((u,i)=>{
+
+output+=`
+<div class="card">
+<b>${u.username}</b><br>
+Role: ${u.role}<br>
+Locked: ${u.locked}<br>
+Warnings: ${u.warnings.length}
+
+<button onclick="unlockUser(${i})">Unlock</button>
+<button onclick="deleteUser(${i})">Delete</button>
+
+</div>
+`;
+
+});
+
+container.innerHTML=output;
+}
+
+function deleteUser(index){
+let users=getUsers();
+users.splice(index,1);
+saveUsers(users);
+renderUsers();
+populateDrivers();
+}
+
+function unlockUser(index){
+let users=getUsers();
+users[index].locked=false;
+users[index].warnings=[];
+saveUsers(users);
+renderUsers();
+}
+
+/* =====================================================
+   PRODUCTS
+===================================================== */
+
+function addProduct(){
+
+let products=getProducts();
+
+products.push({
+name:productName.value,
+stock:parseInt(productStock.value)
+});
+
+saveProducts(products);
+renderProducts();
+}
+
+function renderProducts(){
+
+let products=getProducts();
+let container=document.getElementById("productsList");
+if(!container) return;
+
+let output="";
+
+products.forEach((p,i)=>{
+
+output+=`
+<div class="card">
+<b>${p.name}</b><br>
+Stock: ${p.stock}
+<button onclick="deleteProduct(${i})">Delete</button>
+</div>
+`;
+
+});
+
+container.innerHTML=output;
+}
+
+function deleteProduct(index){
+let products=getProducts();
+products.splice(index,1);
+saveProducts(products);
+renderProducts();
+}
+
+/* =====================================================
+   ROUTES
+===================================================== */
+
+function populateDrivers(){
+
+let drivers=getUsers().filter(u=>u.role==="driver");
+let select=document.getElementById("assignDriver");
+
+if(!select) return;
+
+select.innerHTML="<option value=''>Unassigned</option>";
+
+drivers.forEach(d=>{
+let opt=document.createElement("option");
+opt.value=d.username;
+opt.innerText=d.username;
+select.appendChild(opt);
+});
+}
+
+function addRoute(){
+
+let routes=getRoutes();
+
+routes.push({
+name:routeName.value,
+address:routeAddress.value,
+assignedTo:assignDriver.value || null,
+status:"Pending"
+});
+
+saveRoutes(routes);
+renderRoutes();
+}
+
+function renderRoutes(){
+
+let routes=getRoutes();
+let container=document.getElementById("routesList");
+if(!container) return;
+
+let output="";
+
+routes.forEach((r,i)=>{
+
+output+=`
+<div class="card">
+<b>${r.name}</b><br>
+📍 ${r.address}<br>
+Assigned: ${r.assignedTo || "None"}<br>
+Status: ${r.status}
+</div>
+`;
+
+});
+
+container.innerHTML=output;
+}
+
+/* =====================================================
+   INTELLIGENCE
+===================================================== */
+
+function getReputation(){
+return JSON.parse(localStorage.getItem("driverReputation")||"[]");
+}
+
+function runIntelligence(){
+
+let routes=getRoutes();
+let users=getUsers();
+let products=getProducts();
+
+let completed=routes.filter(r=>r.status==="Completed").length;
+let pending=routes.filter(r=>r.status==="Pending").length;
+
+let locked=users.filter(u=>u.locked);
+
+let output="📊 SYSTEM REPORT\n\n";
+output+=`Completed Routes: ${completed}\nPending: ${pending}\n\n`;
+
+output+="🚨 Locked Users\n";
+locked.forEach(u=>{
+output+=u.username+"\n";
+});
+
+output+="\n📦 Inventory\n";
+products.forEach(p=>{
+output+=`${p.name} — ${p.stock}\n`;
+});
+
+document.getElementById("intelligenceContent").innerText=output;
+}
+
+/* =====================================================
+   SIDEBAR
+===================================================== */
+
+function loadSidebar(){
+
+let buttons=[
+{label:"Routes",section:"routes"},
+{label:"Users",section:"users"},
+{label:"Products",section:"products"},
+{label:"Intelligence",section:"intelligence"}
+];
+
+let container=document.getElementById("sidebarButtons");
+container.innerHTML="";
+
+buttons.forEach(b=>{
+let btn=document.createElement("button");
+btn.innerText=b.label;
+btn.onclick=()=>showSection(b.section);
+container.appendChild(btn);
+});
+
+}
+
+function showSection(section){
+
+document.querySelectorAll(".section")
+.forEach(s=>s.style.display="none");
+
+let el=document.getElementById(section+"Section");
+if(el) el.style.display="block";
+
+if(section==="users") renderUsers();
+if(section==="products") renderProducts();
+if(section==="routes") populateDrivers();
+
+}
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+/* =====================================================
+   INIT
+===================================================== */
+
+document.addEventListener("DOMContentLoaded",()=>{
+loadSidebar();
+showSection("routes");
+populateDrivers();
+});
+
+</script>
+
+</body>
+</html>
