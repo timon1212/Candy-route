@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DayNight Vending - Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Reset */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #333;
+        }
+
+        .container {
+            background: #fff;
+            padding: 40px 30px;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #1e3c72;
+        }
+
+        .status {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .online { background-color: #28a745; }
+        .offline { background-color: #dc3545; }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 8px;
+            background: #1e3c72;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #2a5298;
+        }
+
+        #error {
+            color: red;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        @media (max-width: 450px) {
+            .container {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="connectionStatus" class="status online">Online</div>
+        <h1>DayNight Vending</h1>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <p id="error"></p>
+    </div>
+
+    <script>
+        // Local users for now
+        const users = [
+            { username: 'admin', password: 'admin123', role: 'admin' },
+            { username: 'driver1', password: 'driver123', role: 'driver' },
+            { username: 'driver2', password: 'driver123', role: 'driver' }
+        ];
+
+        function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const error = document.getElementById('error');
+
+            const user = users.find(u => u.username === username && u.password === password);
+            if (user) {
+                // Redirect based on role
+                if (user.role === 'admin') {
+                    window.location.href = 'admin.html';
+                } else {
+                    window.location.href = 'driver.html';
+                }
+            } else {
+                error.textContent = 'Invalid username or password';
+            }
+        }
+
+        // Online/offline notification
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        function updateConnectionStatus() {
+            if (navigator.onLine) {
+                connectionStatus.textContent = 'Online';
+                connectionStatus.classList.remove('offline');
+                connectionStatus.classList.add('online');
+            } else {
+                connectionStatus.textContent = 'Offline';
+                connectionStatus.classList.remove('online');
+                connectionStatus.classList.add('offline');
+            }
+        }
+
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+        updateConnectionStatus(); // Initial check
+    </script>
+</body>
+</html>
