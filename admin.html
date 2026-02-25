@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DayNight Vending - Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: #f4f6f8;
+            color: #333;
+        }
+        header {
+            background: #1e3c72;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 24px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        h2 {
+            color: #1e3c72;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #007BFF;
+            color: white;
+        }
+        button {
+            padding: 8px 12px;
+            margin: 2px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-refill { background: #28a745; }
+        .btn-problem { background: #dc3545; }
+        .btn-offline { background: #6c757d; }
+        @media (max-width: 768px) {
+            th, td { padding: 8px 10px; font-size: 14px; }
+            header { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <header>DayNight Vending - Admin Panel</header>
+    <div class="container">
+        <h2>Vending Machines</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Machine ID</th>
+                    <th>Location</th>
+                    <th>Inventory</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="machineTable"></tbody>
+        </table>
+
+        <h2>Drivers</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Driver</th>
+                    <th>Assigned Machines</th>
+                </tr>
+            </thead>
+            <tbody id="driverTable"></tbody>
+        </table>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script>
+        // Firebase config
+        const firebaseConfig = {
+          apiKey: "YOUR_API_KEY",
+          authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+          databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+          projectId: "YOUR_PROJECT_ID",
+          storageBucket: "YOUR_PROJECT_ID.appspot.com",
+          messagingSenderId: "YOUR_SENDER_ID",
+          appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const machineTable = document.getElementById('machineTable');
+        const driverTable = document.getElementById('driverTable');
+
+        // Load vending machines in real-time
+        db.ref('machines').on('value', snapshot => {
+            const machines = snapshot.val() || {};
+            machineTable.innerHTML = '';
+            for (let id in machines) {
+                const m = machines[id];
+                machineTable.innerHTML += `
+                    <tr>
+                        <td>${id}</td>
+                        <td>${m.location}</td>
+                        <td>${m.inventory}</td>
+                        <td>${m.status}</td>
+                        <td>
+                            <button class="btn-refill" onclick="updateStatus('${id}','refilled')">Refilled</button>
+                            <button class="btn-problem" onclick="updateStatus('${id}','problem')">Problem</button>
+                            <button class="btn-offline" onclick="updateStatus('${id}','offline')">Offline</button>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Load drivers and their assigned machines
+        db.ref('drivers').on('value', snapshot => {
+            const drivers = snapshot.val() || {};
+            driverTable.innerHTML = '';
+            for (let driverId in drivers) {
+                const driver = drivers[driverId];
+                const assigned = driver.assignedMachines ? Object.keys(driver.assignedMachines).join(', ') : 'None';
+                driverTable.innerHTML += `
+                    <tr>
+                        <td>${driverId}</td>
+                        <td>${assigned}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Function to update vending machine status
+        function updateStatus(machineId, status) {
+            db.ref('machines/' + machineId).update({ status });
+        }
+    </script>
+</body>
+</html>
