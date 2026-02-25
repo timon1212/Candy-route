@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Offline AI Fleet Portal</title>
+<style>
+:root{--bg:#f0f4f8;--card:#fff;--text:#111;--accent:#2563eb;--accent-hover:#1e40af;}
+.dark{--bg:#0f172a;--card:#1f2937;--text:#e5e7eb;--accent:#3b82f6;--accent-hover:#60a5fa;}
+body{margin:0;font-family:'Inter',system-ui;background:var(--bg);color:var(--text);transition: background 0.3s, color 0.3s;}
+#app{transition: all 0.3s;}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--card);box-shadow:0 3px 6px rgba(0,0,0,0.12);position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(0,0,0,0.05);}
+nav button{margin-left:8px;padding:10px 16px;border:none;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-weight:500;transition: background 0.3s, transform 0.2s;}
+nav button:hover{background:var(--accent-hover);transform:translateY(-2px);}
+.card{background:var(--card);padding:24px;border-radius:16px;max-width:900px;margin:20px auto;box-shadow:0 6px 18px rgba(0,0,0,0.12);transition: box-shadow 0.3s;}
+.card:hover{box-shadow:0 10px 25px rgba(0,0,0,0.15);}
+input, select, textarea{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #ccc;font-size:1rem;outline:none;transition:border 0.2s;}
+input:focus, select:focus, textarea:focus{border:2px solid var(--accent);}
+button{padding:10px 16px;border:none;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-weight:500;margin-top:8px;transition: background 0.3s, transform 0.2s;}
+button:hover{background:var(--accent-hover);transform:translateY(-2px);}
+.small{max-width:400px;margin:80px auto}
+.chat-box{border:1px solid #ccc;border-radius:12px;padding:10px;max-height:200px;overflow-y:auto;margin:8px 0;background:var(--bg)}
+#map{height:500px;width:100%;border-radius:16px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script>
+const $=e=>document.getElementById(e);
+
+let users=JSON.parse(localStorage.users||'[]');
+let trips=JSON.parse(localStorage.trips||'[]');
+let ratings=JSON.parse(localStorage.ratings||'[]');
+let driverWarnings=JSON.parse(localStorage.driverWarnings||'{}');
+let driverLocks=JSON.parse(localStorage.driverLocks||'{}');
+let driverScores=JSON.parse(localStorage.driverScores||'{}');
+let schedules=JSON.parse(localStorage.schedules||'[]');
+let current=null;
+
+if(!users.length){users=[{username:'admin',password:'admin123',role:'admin',email:'admin@local'}];saveUsers();}
+
+function saveUsers(){localStorage.users=JSON.stringify(users);}
+function saveTrips(){localStorage.trips=JSON.stringify(trips);}
+function saveRatings(){localStorage.ratings=JSON.stringify(ratings);}
+function saveDriverWarnings(){localStorage.driverWarnings=JSON.stringify(driverWarnings);}
+function saveDriverLocks(){localStorage.driverLocks=JSON.stringify(driverLocks);}
+function saveDriverScores(){localStorage.driverScores=JSON.stringify(driverScores);}
+function saveSchedules(){localStorage.schedules=JSON.stringify(schedules);}
+
+function generateSchedules(){
+    if(schedules.length>0) return;
+    const times=['8:00-12:00','12:30-16:30','17:00-21:00'];
+    times.forEach(t=>schedules.push({time:t,assigned:null}));
+    saveSchedules();
+}
+
+function loginUI(){
+    current=null;
+    $('app').innerHTML=`<div class='card small'><h2>Login</h2>
+    <input id='u' placeholder='Username'>
+    <input id='p' type='password' placeholder='Password'>
+    <button onclick='login()'>Login</button></div>`;
+}
+
+function login(){
+    let u=users.find(x=>x.username==$('u').value && x.password==$('p').value);
+    if(!u) return alert('Invalid');
+    if(driverLocks[u.username]) return alert('Account locked due to warnings. Admin must unlock.');
+    current=u;
+    if(!current.id) current.id=Math.floor(Math.random()*900000+100000);
+    generateSchedules();
+    dashboard();
+}
+
+function navButtons(){
+    let b=`<button onclick='dashboard()'>Home</button><button onclick='tripFormUI()'>Trips</button><button onclick='accountUI()'>Account</button>`;
+    if(current.role==='driver'){ b+=`<button onclick='ratingUI()'>Ratings</button><button onclick='supportUI()'>Support</button>`; }
+    else { b+=`<button onclick='ratingUI()'>Ratings</button>`; }
+    return b;
+}
+
+function layout(content){$('app').innerHTML=content;}
+
+// Dashboard with map
+function dashboard(){
+    layout(`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header>
+    <div class='card'><h2>Driver Stops Map</h2><div id='map'></div><br><button onclick='scheduleUI()'>Schedule Now</button></div>`);
+    setTimeout(()=>{
+        const map=L.map('map').setView([37.8,-96],4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+        trips.forEach(t=>{ if(t.lat && t.lng){ L.marker([t.lat,t.lng]).addTo(map).bindPopup(`Driver: ${t.driver}<br>Store: ${t.store}`); } });
+        const driverStops=trips.filter(t=>t.driver===current.username && t.lat && t.lng);
+        const latlngs=driverStops.map(s=>[s.lat,s.lng]);
+        if(latlngs.length>1){ L.polyline(latlngs,{color:'blue'}).addTo(map); }
+    },50);
+}
+
+// Schedule UI
+function scheduleUI(){
+    let html=`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header><div class='card'><h2>Available Schedules</h2>`;
+    schedules.forEach((s,i)=>{
+        html+=`<div>Schedule ${i+1}: ${s.time} - <button onclick='acceptSchedule(${i})'>Accept</button></div>`;
+    });
+    html+=`</div>`;
+    layout(html);
+}
+
+function acceptSchedule(index){
+    const s=schedules[index];
+    if(!s) return;
+    if(current.acceptedSchedule) return alert('You already have a schedule.');
+    current.acceptedSchedule=s;
+    saveUsers();
+    alert('Schedule accepted. You can now access Trips.');
+    tripFormUI();
+}
+
+// Trips Form
+function tripFormUI(){
+    if(!current.acceptedSchedule) return alert('Accept a schedule first.');
+    const driverTrips=trips.filter(t=>t.driver===current.username);
+    let html=`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header><div class='card'><h2>Trips</h2>`;
+    driverTrips.forEach((t,i)=>{
+        const store=t.store||'Unknown Store';
+        const slots=t.slots||0;
+        const cash=t.cash||0;
+        html+=`<div style='border:1px solid #ccc;padding:8px;margin:8px 0;'>
+        <b>${store}</b><br>
+        <button onclick='arrived(${i})'>Arrived at Store</button><br>
+        Slots Sold: ${slots}<br>
+        Cash Collected: ${cash}<br>
+        Notes: <textarea id='note${i}'></textarea><br>
+        <input type='file' id='photo${i}'><br>
+        </div>`;
+    });
+    html+=`</div>`;
+    layout(html);
+}
+
+function arrived(index){
+    let t=trips.filter(trip=>trip.driver===current.username)[index];
+    if(!t) return;
+    if(!driverWarnings[current.username]) driverWarnings[current.username]=[];
+    const now=Date.now();
+    if(!t.lastArrive) t.lastArrive=now;
+    else if(now-t.lastArrive>45*60*1000){ driverWarnings[current.username].push({trip:t.store,time:now,reason:'Late arrival'}); saveDriverWarnings(); alert('Warning: Late arrival'); }
+    t.lastArrive=now;
+    saveTrips();
+    alert(`Arrived at ${t.store} recorded.`);
+}
+
+// Ratings
+function ratingUI(){
+    const myTrips=trips.filter(t=>t.driver===current.username);
+    const completedTrips=myTrips.filter(t=>t.lastArrive).length;
+    const totalTrips=myTrips.length;
+    const completionRate=totalTrips?Math.round((completedTrips/totalTrips)*100):0;
+    const warningsCount=(driverWarnings[current.username]||[]).length;
+    const onTimeRate=totalTrips?Math.round(((totalTrips-warningsCount)/totalTrips)*100):0;
+    const ratingScore=ratings.slice(-10).reduce((a,b)=>a+Number(b),0)/Math.min(10,ratings.length)||0;
+    layout(`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header><div class='card'><h2>Ratings & Performance</h2>Completion Rate: ${completionRate}%<br>On-Time Rate: ${onTimeRate}%<br>Driver Score: ${ratingScore.toFixed(1)}/5</div>`);
+}
+
+// Support
+function supportUI(){
+    layout(`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header>
+    <div class='card'><h2>Support Assistant</h2><div class='chat-box' id='chatBox'></div>
+    <input id='chatInput' placeholder='Ask a question...' onkeydown='if(event.key=="Enter") sendSupport()'><button onclick='sendSupport()'>Send</button></div>`);
+}
+function sendSupport(){
+    const input=$('chatInput'); const box=$('chatBox'); const msg=input.value.trim();
+    if(!msg) return;
+    box.innerHTML+=`<div><b>You:</b> ${msg}</div>`;
+    let answer='Sorry, I do not understand.';
+    const lmsg=msg.toLowerCase();
+    if(lmsg.includes('warning')) answer='Warnings appear for late trips or cash discrepancies. 4 warnings lock account.';
+    else if(lmsg.includes('trip')) answer='Complete each stop using the Arrived button and upload photos if needed.';
+    else if(lmsg.includes('contact')) answer='Contact your manager or admin for help.';
+    box.innerHTML+=`<div><b>Assistant:</b> ${answer}</div>`;
+    box.scrollTop=box.scrollHeight;
+    input.value='';
+}
+
+// Account Tabs
+function accountUI(){
+    layout(`<header><div>${current.username} (${current.role})</div><nav>${navButtons()}</nav></header>
+    <div class='card'>
+    <h2>Account</h2>
+    <button onclick='profile()'>Profile</button>
+    <button onclick='appSettings()'>App Settings</button>
+    <button onclick='vehicleManagement()'>Vehicle Management</button>
+    <button onclick='dayNightEducation()'>DayNight Education</button>
+    <hr><button onclick='logout()'>Logout</button></div>`);
+}
+
+function profile(){ layout(`<div class='card'><h2>Profile</h2><p>Profile inputs here (see previous example)</p></div>`); }
+function appSettings(){ layout(`<div class='card'><h2>App Settings</h2><button onclick='toggleTheme()'>Toggle Theme</button></div>`); }
+function vehicleManagement(){ layout(`<div class='card'><h2>Vehicle Management</h2><p>Vehicle inputs here</p></div>`); }
+function dayNightEducation(){ layout(`<div class='card'><h2>DayNight Education Modules</h2><p>Modules appear here</p></div>`); }
+
+function toggleTheme(){document.body.classList.toggle('dark');}
+function logout(){current=null;$('app').innerHTML='';setTimeout(()=>loginUI(),50);}
+
+document.addEventListener('DOMContentLoaded', loginUI);
+</script>
+</body>
+</html>
