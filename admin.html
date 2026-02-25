@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DayNight Vending Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+    margin:0;
+    background:#0f172a;
+    color:white;
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+header{
+    background:#020617;
+    padding:15px 20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+h1{margin:0;font-size:20px;}
+
+.status{font-size:13px;}
+.online{color:#22c55e;}
+.offline{color:#ef4444;}
+
+.container{padding:25px;}
+
+.card{
+    background:#020617;
+    padding:20px;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:10px;
+    margin:6px 0;
+    border:none;
+    border-radius:8px;
+    background:#1e293b;
+    color:white;
+}
+
+button{
+    padding:10px 14px;
+    border:none;
+    border-radius:8px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+}
+button:hover{background:#1d4ed8;}
+
+.delete{background:#dc2626;}
+.delete:hover{background:#b91c1c;}
+
+.item{
+    background:#1e293b;
+    padding:10px;
+    border-radius:8px;
+    margin-top:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.logout{background:#f59e0b;}
+.logout:hover{background:#d97706;}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>Admin Panel</h1>
+    <div id="status" class="status">Checking...</div>
+    <button class="logout" onclick="logout()">Logout</button>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>Create Driver</h2>
+<input id="dUser" placeholder="Username">
+<input id="dPass" placeholder="Password">
+<button onclick="createDriver()">Create</button>
+</div>
+
+<div class="card">
+<h2>Drivers</h2>
+<div id="drivers"></div>
+</div>
+
+<div class="card">
+<h2>Add Machine</h2>
+<input id="mName" placeholder="Machine Name">
+<input id="mLocation" placeholder="Location">
+<button onclick="addMachine()">Add Machine</button>
+</div>
+
+<div class="card">
+<h2>Machines</h2>
+<div id="machines"></div>
+</div>
+
+</div>
+
+<script>
+
+/* ---------- DB FUNCTIONS ---------- */
+function getDB(){ return JSON.parse(localStorage.getItem("DNV_DB")); }
+function saveDB(db){ localStorage.setItem("DNV_DB",JSON.stringify(db)); }
+
+/* ---------- AUTH ---------- */
+let db=getDB();
+let user=db.users.find(u=>u.username===db.currentUser);
+
+if(!user || user.role!=="admin"){
+    alert("Not authorized");
+    location="index.html";
+}
+
+/* ---------- ONLINE STATUS ---------- */
+function updateStatus(){
+    const s=document.getElementById("status");
+    if(navigator.onLine){s.textContent="ONLINE";s.className="status online";}
+    else{s.textContent="OFFLINE";s.className="status offline";}
+}
+window.addEventListener("online",updateStatus);
+window.addEventListener("offline",updateStatus);
+updateStatus();
+
+/* ---------- DRIVER FUNCTIONS ---------- */
+function createDriver(){
+    const u=dUser.value.trim();
+    const p=dPass.value.trim();
+    if(!u||!p)return;
+
+    if(db.users.find(x=>x.username===u)){alert("Exists");return;}
+
+    db.users.push({username:u,password:p,role:"driver"});
+    saveDB(db);
+    dUser.value="";dPass.value="";
+    renderDrivers();
+}
+
+function deleteDriver(name){
+    db.users=db.users.filter(u=>u.username!==name);
+    saveDB(db);
+    renderDrivers();
+}
+
+function renderDrivers(){
+    drivers.innerHTML="";
+    db.users.filter(u=>u.role==="driver").forEach(d=>{
+        drivers.innerHTML+=`
+        <div class="item">
+            ${d.username}
+            <button class="delete" onclick="deleteDriver('${d.username}')">Delete</button>
+        </div>`;
+    });
+}
+
+/* ---------- MACHINES ---------- */
+if(!db.machines) db.machines=[];
+
+function addMachine(){
+    const name=mName.value.trim();
+    const loc=mLocation.value.trim();
+    if(!name||!loc)return;
+
+    db.machines.push({id:Date.now(),name,location:loc,driver:null});
+    saveDB(db);
+    mName.value="";mLocation.value="";
+    renderMachines();
+}
+
+function deleteMachine(id){
+    db.machines=db.machines.filter(m=>m.id!==id);
+    saveDB(db);
+    renderMachines();
+}
+
+function renderMachines(){
+    machines.innerHTML="";
+    db.machines.forEach(m=>{
+        machines.innerHTML+=`
+        <div class="item">
+            ${m.name} - ${m.location}
+            <button class="delete" onclick="deleteMachine(${m.id})">Delete</button>
+        </div>`;
+    });
+}
+
+/* ---------- LOGOUT ---------- */
+function logout(){
+    db.currentUser=null;
+    saveDB(db);
+    location="index.html";
+}
+
+/* ---------- INIT ---------- */
+renderDrivers();
+renderMachines();
+
+</script>
+
+</body>
+</html>
